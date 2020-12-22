@@ -26,8 +26,36 @@ public class QRView:NSObject,FlutterPlatformView {
                 try scanner?.startScanning(resultBlock: { [weak self] codes in
                     if let codes = codes {
                         for code in codes {
+                            var typeString: String;
+                            switch(code.type) {
+                                case AVMetadataObject.ObjectType.aztec:
+                                   typeString = "AZTEC"
+                                case AVMetadataObject.ObjectType.code39:
+                                    typeString = "CODE_39"
+                                case AVMetadataObject.ObjectType.code93:
+                                    typeString = "CODE_93"
+                                case AVMetadataObject.ObjectType.code128:
+                                    typeString = "CODE_128"
+                                case AVMetadataObject.ObjectType.dataMatrix:
+                                    typeString = "DATA_MATRIX"
+                                case AVMetadataObject.ObjectType.ean8:
+                                    typeString = "EAN_8"
+                                case AVMetadataObject.ObjectType.ean13:
+                                    typeString = "EAN_13"
+                                case AVMetadataObject.ObjectType.itf14:
+                                    typeString = "ITF"
+                                case AVMetadataObject.ObjectType.pdf417:
+                                    typeString = "PDF_417"
+                                case AVMetadataObject.ObjectType.qr:
+                                    typeString = "QR_CODE"
+                                case AVMetadataObject.ObjectType.upce:
+                                    typeString = "UPC_E"
+                                default:
+                                    return
+                            }
                             guard let stringValue = code.stringValue else { continue }
-                            self?.channel.invokeMethod("onRecognizeQR", arguments: stringValue)
+                            let result = ["code": stringValue, "type": typeString]
+                            self?.channel.invokeMethod("onRecognizeQR", arguments: result)
                         }
                     }
                 })
@@ -44,8 +72,8 @@ public class QRView:NSObject,FlutterPlatformView {
             [weak self] (call: FlutterMethodCall, result: FlutterResult) -> Void in
             switch(call.method){
                 case "setDimensions":
-                    var arguments = call.arguments as! Dictionary<String, Double>
-                    self?.setDimensions(width: arguments["width"] ?? 0,height: arguments["height"] ?? 0)
+                    let arguments = call.arguments as! Dictionary<String, Double>
+                    self?.setDimensions(width: arguments["width"] ?? 0, height: arguments["height"] ?? 0, scanArea: arguments["scanArea"] ?? 0)
                 case "flipCamera":
                     self?.flipCamera()
                 case "toggleFlash":
@@ -62,10 +90,26 @@ public class QRView:NSObject,FlutterPlatformView {
         return previewView
     }
     
-    func setDimensions(width: Double, height: Double) -> Void {
-       previewView.frame = CGRect(x: 0, y: 0, width: width, height: height)
-       scanner = MTBBarcodeScanner(previewView: previewView)
-       MTBBarcodeScanner.requestCameraPermission(success: isCameraAvailable)
+    func setDimensions(width: Double, height: Double, scanArea: Double) -> Void {
+        previewView.frame = CGRect(x: 0, y: 0, width: width, height: height)
+        let midX = self.view().bounds.midX
+        let midY = self.view().bounds.midY
+        if let sc: MTBBarcodeScanner = scanner {
+            if let previewLayer = sc.previewLayer {
+                previewLayer.frame = previewView.bounds;
+            }
+        } else {
+            scanner = MTBBarcodeScanner(previewView: previewView)
+            
+            if (scanArea != 0) {
+                scanner?.didStartScanningBlock = {
+                    self.scanner?.scanRect = CGRect(x: Double(midX) - (scanArea / 2), y: Double(midY) - (scanArea / 2), width: scanArea, height: scanArea)
+                }
+            }
+
+
+            MTBBarcodeScanner.requestCameraPermission(success: isCameraAvailable)
+        }
     }
     
     func flipCamera(){
